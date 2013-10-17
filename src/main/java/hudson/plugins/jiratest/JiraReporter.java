@@ -21,6 +21,8 @@ import java.rmi.RemoteException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import jenkins.model.Jenkins;
+
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
@@ -96,7 +98,7 @@ public class JiraReporter extends Notifier {
 		.getTestResultAction();
 	List<CaseResult> failedTests = testResultAction.getFailedTests();
 	printResultItems(failedTests, listener);
-	createJiraIssue(failedTests, listener);
+	createJiraIssue(failedTests, listener, build);
 	// }
 	logger.printf("%s Done.%n", pInfo);
 	return true;
@@ -140,7 +142,7 @@ public class JiraReporter extends Notifier {
     }
 
     void createJiraIssue(final List<CaseResult> failedTests,
-	    final BuildListener listener) {
+	    final BuildListener listener, final AbstractBuild build) {
 	PrintStream logger = listener.getLogger();
 	String url = this.serverAddress + "rest/api/2/issue/";
 	JiraSession session = null;
@@ -148,11 +150,11 @@ public class JiraReporter extends Notifier {
 	    session = new JiraSession(new URL(this.serverAddress));
 	    session.connect(username, password);
 	} catch (MalformedURLException e1) {
-	    // TODO Auto-generated catch block
-	    e1.printStackTrace();
+	    throw new RuntimeException(this.prefixError
+		    + " Failed with error message  : " + e1.getMessage());
 	} catch (RemoteException e) {
-	    // TODO Auto-generated catch block
-	    e.printStackTrace();
+	    throw new RuntimeException(this.prefixError
+		    + " Failed with error message  : " + e.getMessage());
 	}
 
 	for (CaseResult result : failedTests) {
@@ -169,7 +171,10 @@ public class JiraReporter extends Notifier {
 		builder.setSummary("The test " + result.getName() + " failed "
 			+ result.getClassName() + ": "
 			+ result.getErrorDetails());
-		builder.setDescription("Test class: "
+		builder.setDescription("Build "
+			+ Jenkins.getInstance().getRootUrlFromRequest()
+			+ build.getUrl() // TODO: Create correct url
+			+ "\r\n Test class: "
 			+ result.getClassName()
 			+ " -- "
 			+ result.getErrorStackTrace().replace(
@@ -178,11 +183,11 @@ public class JiraReporter extends Notifier {
 		try {
 		    issues.createIssue(input).get();
 		} catch (InterruptedException e) {
-		    // TODO Auto-generated catch block
-		    e.printStackTrace();
+		    throw new RuntimeException(this.prefixError
+			    + " Failed with error message  : " + e.getMessage());
 		} catch (ExecutionException e) {
-		    // TODO Auto-generated catch block
-		    e.printStackTrace();
+		    throw new RuntimeException(this.prefixError
+			    + " Failed with error message  : " + e.getMessage());
 		}
 	    } else {
 		logger.printf("%s This issue is old; not reporting.%n", pInfo);
